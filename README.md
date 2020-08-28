@@ -1,5 +1,6 @@
-# TheLinkBox-Dashboard
+# TheLinkBox Dashboard
 A very basic Dashboard to see who is connected to The Link Box reflector on your server.
+Please consider helping us develop this dashboard, it could do a lot more!
 
 #Prerequisite
 This install makes the assumptions you are aware of:
