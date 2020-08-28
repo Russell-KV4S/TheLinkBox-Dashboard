@@ -11,6 +11,6 @@ This install makes the assumptions you are aware of:
 5) You have already installed your reflector from http://75.127.13.79/TheLinkBox on Debian 10 Buster.
 
 # Install
-Install Apache and PHP using these instructions: https://computingforgeeks.com/install-php-on-debian-10-buster/
-Copy the index.php in the /var/www/html folder.
-Open a browser window to your servers IP address and see if it renders.
+1) Install Apache and PHP using these instructions: https://computingforgeeks.com/install-php-on-debian-10-buster/
+2) Copy the index.php in the /var/www/html folder.
+3) Open a browser window to your servers IP address and see if it renders. (remember to open port 80 if nesessary)
