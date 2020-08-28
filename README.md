@@ -2,7 +2,7 @@
 A very basic Dashboard to see who is connected to The Link Box reflector on your server.
 Please consider helping us develop this dashboard, it could do a lot more!
 
-# Prerequisite
+# Prerequisites
 This install makes the assumptions you are aware of:
 1) Amateur Radio
 2) IRLP
