@@ -46,7 +46,7 @@ $sec = "5";
 		</table
 	</center>
 	<br>
-	<p>The meaning of the attribute characters may be display by the ".user ?" command.  They are as follows:</p>
+	<p>The meaning of the connected node's attribute characters are as follows:</p>
 
 	<table border="1" style="border-collapse:collapse">
 		<tr><th>A</th><td>logged in as an administrator.</td></tr>
