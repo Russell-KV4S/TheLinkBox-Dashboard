@@ -25,5 +25,23 @@ $sec = "5";
 			echo "<pre>$output</pre>";
 		?>
 	</center></h3>
+	<center>
+		<br>
+		<p>___________________________________________________________________</p>
+		<table>
+			<tr>
+				<th>
+					<a href="http://experimental.irlp.net" target="_blank">IRLP Experimental Reflector Page</a>
+				</th>
+			</tr>
+		</table>
+		<table>
+		<tr>
+			<th><br>
+					Make sure you have the following statement in the environment file of your IRLP node computer.<br>
+					export ALLOW_EXPERIMENTAL_NODES=YES
+			</th>
+		</tr>
+		</table
  </body>
 </html>
