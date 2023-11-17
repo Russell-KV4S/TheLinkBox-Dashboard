@@ -8,7 +8,7 @@ This install makes the assumptions you are aware of:
 2) IRLP
 3) IRLP Expermimental Reflectors: http://experimental.irlp.net 
 4) TheLinkBox
-5) You have already installed your reflector from http://75.127.13.79/TheLinkBox on Debian 10 Buster.
+5) You have already installed your reflector from http://k5nx.com/TheLinkBox on Debian 10 Buster.
 
 # Install
 1) Install Apache and PHP using these instructions: https://computingforgeeks.com/install-php-on-debian-10-buster/
