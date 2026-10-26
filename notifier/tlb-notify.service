@@ -1,0 +1,12 @@
+[Unit]
+Description=TheLinkBox connect/disconnect alerts
+After=network-online.target
+
+[Service]
+User=www-data
+ExecStart=/usr/bin/php /usr/local/lib/tlb-dashboard/tlb-notify.php
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
