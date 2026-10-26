@@ -4,6 +4,7 @@
 const TLB_STATE_DIR = '/var/lib/tlb-admin';
 const TLB_SETTINGS  = '/var/lib/tlb-admin/settings.json';
 const TLB_BIN       = '/usr/local/bin/tlbcmd';
+const TLB_VERSION   = '2.2.0';   // dashboard release, shown in the page footer; see CHANGELOG.md
 
 // Run one tlbcmd command and return its output without the leading numeric status line.
 function tlb_cmd($text) {

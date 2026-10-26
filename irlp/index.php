@@ -135,7 +135,7 @@ function rate($bps) { $k = $bps * 8 / 1000; return $k >= 1000 ? number_format($k
 	</details>
 
 	<div class="foot"><a href="http://experimental.irlp.net" target="_blank" rel="noopener">IRLP experimental reflectors</a><?php if ($set['footer_url'] !== ''): ?><a href="<?= h($set['footer_url']) ?>" target="_blank" rel="noopener"><?= h($set['footer_text'] !== '' ? $set['footer_text'] : preg_replace('#^https?://(www\.)?#i', '', rtrim($set['footer_url'], '/'))) ?></a><?php endif; ?></div>
-	<div class="foot">Dashboard design by Russell, KV4S &middot; <a href="https://github.com/Russell-KV4S/TheLinkBox-Dashboard" target="_blank" rel="noopener">GitHub</a></div>
+	<div class="foot">Dashboard design by Russell, KV4S &middot; <a href="https://github.com/Russell-KV4S/TheLinkBox-Dashboard" target="_blank" rel="noopener">GitHub</a> &middot; v<?= h(TLB_VERSION) ?></div>
 </div>
 <script src="net.js"></script>
 <?php if ($viewerAlerts): ?><script src="alerts.js"></script><?php endif; ?>

@@ -110,6 +110,98 @@ function ws_close(&$ws) {
 	$ws = null;
 }
 
+// ---- minimal server-sent-events client for the Allmon2 live feed ----
+// Allmon2's server.php streams `event:`/`data:` blocks; a `nodes` event lists the linked nodes and which are keyed,
+// `nodetimes` events (about once a second) carry the connect times.
+
+function sse_open($url) {
+	$u = parse_url($url);
+	if (!$u || ($u['scheme'] ?? '') !== 'https' || empty($u['host'])) return null;
+	$host = $u['host'];
+	$path = ($u['path'] ?? '/').(isset($u['query']) ? '?'.$u['query'] : '');
+	$ctx  = stream_context_create(['ssl' => ['peer_name' => $host, 'SNI_enabled' => true]]);
+	$fp   = @stream_socket_client('ssl://'.$host.':'.($u['port'] ?? 443), $en, $es, 8, STREAM_CLIENT_CONNECT, $ctx);
+	if (!$fp) return null;
+	stream_set_timeout($fp, 8);
+	// HTTP/1.0 so the server doesn't chunk the stream
+	fwrite($fp, "GET $path HTTP/1.0\r\nHost: $host\r\nAccept: text/event-stream\r\nUser-Agent: TheLinkBox-Dashboard/1.0\r\n\r\n");
+	$head = '';
+	while (strpos($head, "\r\n\r\n") === false && strlen($head) < 16384) {
+		$c = fread($fp, 2048);
+		if ($c === false || $c === '') break;
+		$head .= $c;
+	}
+	$end = strpos($head, "\r\n\r\n");
+	if ($end === false || !preg_match('#^HTTP/1\.[01] 200#', $head) || stripos(substr($head, 0, $end), 'chunked') !== false) {
+		fclose($fp);
+		return null;
+	}
+	stream_set_blocking($fp, false);
+	return ['fp' => $fp, 'buf' => (string)substr($head, $end + 4), 'at' => time(), 'rn' => []];
+}
+
+// Wait up to $wait seconds for data. Returns the complete events received as [name, data] pairs (maybe none),
+// or false when the connection has gone away.
+function sse_read(array &$c, $wait) {
+	$r = [$c['fp']];
+	$w = $e = null;
+	if (strpos($c['buf'], "\n\n") === false && @stream_select($r, $w, $e, (int)$wait, (int)(($wait - (int)$wait) * 1000000)) === false) return false;
+	while (($d = @fread($c['fp'], 65536)) !== false && $d !== '') { $c['buf'] .= $d; $c['at'] = time(); }
+	if (feof($c['fp'])) return false;
+	if (strlen($c['buf']) > 1048576) return false;
+	$out = [];
+	while (($p = strpos($c['buf'], "\n\n")) !== false) {
+		$block = str_replace("\r", '', substr($c['buf'], 0, $p));
+		$c['buf'] = (string)substr($c['buf'], $p + 2);
+		$name = 'message';
+		$data = '';
+		foreach (explode("\n", $block) as $line) {
+			if (strncmp($line, 'event:', 6) === 0) $name = trim(substr($line, 6));
+			elseif (strncmp($line, 'data:', 5) === 0) $data .= trim(substr($line, 5));
+		}
+		if ($data !== '') $out[] = [$name, $data];
+	}
+	return $out;
+}
+
+function sse_close(&$c) {
+	if ($c) @fclose($c['fp']);
+	$c = null;
+}
+
+// Allmon2 text: "&nbsp;" for empty, otherwise plain text with entities.
+function a2_text($v) {
+	return trim(html_entity_decode(str_replace('&nbsp;', '', strip_tags((string)$v)), ENT_QUOTES, 'UTF-8'));
+}
+
+// Fold one Allmon2 event into $c['rn'] and return the node's state shaped like an Allmon3 message
+// (CONNKEYED, CONNKEYEDNODE, CONNS), or null when the event didn't change anything we use.
+function a2_state(array &$c, $name, $data, $node) {
+	$d = json_decode($data, true);
+	$n = is_array($d) ? ($d[$node] ?? null) : null;
+	if (!is_array($n) || !isset($n['remote_nodes']) || !is_array($n['remote_nodes'])) return null;
+	if ($name === 'nodes') {
+		$c['rn'] = array_values($n['remote_nodes']);
+	} elseif ($name === 'nodetimes') {
+		foreach (array_values($n['remote_nodes']) as $i => $t) {
+			if (isset($c['rn'][$i]) && is_array($t)) $c['rn'][$i]['elapsed'] = $t['elapsed'] ?? '';
+		}
+	} else {
+		return null;
+	}
+	$conns = [];
+	$keyed = '';
+	foreach ($c['rn'] as $r) {
+		$k = (string)($r['node'] ?? '');
+		if ($k === '' || empty($r['link'])) continue;   // a half-open entry has no link state yet
+		if (($r['keyed'] ?? '') === 'yes' && $keyed === '') $keyed = $k;
+		$el = a2_text($r['elapsed'] ?? '');
+		$conns[$k] = ['DESC' => a2_text($r['info'] ?? ''), 'MODE' => a2_text($r['mode'] ?? ''),
+			'CTIME' => preg_match('/^\d+:\d\d:\d\d$/', $el) ? $el : ''];
+	}
+	return ['CONNKEYED' => $keyed !== '', 'CONNKEYEDNODE' => $keyed, 'CONNS' => $conns];
+}
+
 // ---- state ----
 $known   = null;   // node => ['attrs','time','ip','proto','since']
 $missing = [];     // node => first time seen missing
@@ -121,7 +213,8 @@ $pruned  = 0;
 $aslIp   = '';     // the AllStar node's IP, to spot which TheLinkBox connection is the AllStar link
 $aslIpAt = 0;
 $ws = null; $wsUrl = ''; $wsRetry = 0; $wsWait = 10;
-$asl = ['node' => '', 'desc' => '', 'at' => 0];   // last AllStar node seen keyed up on Allmon3
+$sse = null; $sseUrl = ''; $sseRetry = 0; $sseWait = 10; $sseSaved = 0;   // Allmon2 stream, used instead of $ws
+$asl = ['node' => '', 'desc' => '', 'at' => 0];   // last AllStar node seen keyed up on Allmon3 / Allmon2
 $aslInfo = [];     // AllStar node => callsign
 $tick = 0;
 
@@ -195,6 +288,13 @@ while (true) {
 		if ($ws) { $wsWait = 10; }
 		else { $wsRetry = $now + $wsWait; $wsWait = min($wsWait * 2, 300); }
 	}
+	$surl = $live['sse'] ?? '';
+	if ($surl !== $sseUrl) { sse_close($sse); $sseUrl = $surl; $sseRetry = 0; $sseWait = 10; }
+	if ($sseUrl && !$sse && $now >= $sseRetry) {
+		$sse = sse_open($sseUrl);
+		if ($sse) { $sseWait = 10; }
+		else { $sseRetry = $now + $sseWait; $sseWait = min($sseWait * 2, 300); }
+	}
 
 	// ---- who is talking right now ----
 	$talking = $users ? tlb_talking() : [];
@@ -244,15 +344,37 @@ while (true) {
 	}
 	if ($now - $pruned > 3600) { tlb_heard_prune($s['heard_days']); $pruned = $now; }
 
-	// ---- wait for the next tick, reading the Allmon3 feed meanwhile ----
+	// ---- wait for the next tick, reading the Allmon3 / Allmon2 feed meanwhile ----
 	while (($left = TICK_SECS - (microtime(true) - $tickStart)) > 0.01) {
-		if (!$ws) { usleep((int)($left * 1000000)); break; }
-		$msgs = ws_read($ws, $left);
-		if ($msgs === false || time() - $ws['at'] > 60) { ws_close($ws); $wsRetry = time() + 5; continue; }
-		foreach ($msgs as $m) {
-			$d = json_decode($m, true);
-			$st = $d[$aslNode] ?? null;
-			if (!is_array($st)) continue;
+		$states = [];
+		if ($ws) {
+			$msgs = ws_read($ws, $left);
+			if ($msgs === false || time() - $ws['at'] > 60) { ws_close($ws); $wsRetry = time() + 5; continue; }
+			foreach ($msgs as $m) {
+				$d = json_decode($m, true);
+				if (is_array($d[$aslNode] ?? null)) $states[] = $d[$aslNode];
+			}
+		} elseif ($sse) {
+			$evs = sse_read($sse, $left);
+			if ($evs === false || time() - $sse['at'] > 60) { sse_close($sse); $sseRetry = time() + 5; continue; }
+			foreach ($evs as $ev) {
+				$st = a2_state($sse, $ev[0], $ev[1], $aslNode);
+				if ($st) $states[] = $st;
+			}
+			if ($states && time() - $sseSaved >= 1) {
+				// the web page can't read Allmon2 itself (cross-site), so hand it the latest state through a small file
+				$list = [];
+				foreach (end($states)['CONNS'] as $k => $c) {
+					$list[] = ['node' => (string)$k, 'desc' => $c['DESC'], 'mode' => $c['MODE'], 'time' => $c['CTIME']];
+				}
+				tlb_asl_feed_save(['list' => $list, 'keyed' => (string)end($states)['CONNKEYEDNODE']]);
+				$sseSaved = time();
+			}
+		} else {
+			usleep((int)($left * 1000000));
+			break;
+		}
+		foreach ($states as $st) {
 			if (($st['CONNKEYED'] ?? false) === true && !empty($st['CONNKEYEDNODE'])) {
 				$kn = (string)$st['CONNKEYEDNODE'];
 				$asl = ['node' => $kn, 'desc' => (string)($st['CONNS'][$kn]['DESC'] ?? ''), 'at' => time()];

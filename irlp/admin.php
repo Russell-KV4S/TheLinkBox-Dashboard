@@ -188,7 +188,7 @@ if ($authed && $do !== '' && $do !== 'login' && $do !== 'logout') {
 		if ($node !== '' && !preg_match('/^\d{3,7}$/', $node)) {
 			$error = 'The node number should be 3 to 7 digits, like 523800.';
 		} elseif ($base !== '' && !preg_match('#^https://[A-Za-z0-9.-]+(:\d{1,5})?(/[A-Za-z0-9._~/-]*)?$#', $base)) {
-			$error = 'The live feed address should look like https://example.org/allmon3/';
+			$error = 'The live feed address should look like https://example.org/allmon3/ or https://example.org/allmon2/';
 		} else {
 			$s['asl_node'] = $node;
 			$s['asl_live_base'] = $base;
@@ -205,7 +205,14 @@ if ($authed && $do !== '' && $do !== 'login' && $do !== 'logout') {
 					} else {
 						$flash = 'Saved. Node '.$node.' found on AllStarLink with '.count($snap['links']).' link(s).';
 						if ($base !== '') {
-							if (!empty($snap['live']['ws'])) $flash .= ' The live feed was found.';
+							if (!empty($snap['live']['sse'])) {
+								// Allmon2: open its event stream for a moment and see that it answers
+								$fp = @fopen($snap['live']['sse'], 'r', false, stream_context_create(['http' => ['timeout' => 6, 'header' => "Accept: text/event-stream\r\n"]]));
+								$first = $fp ? (string)fread($fp, 256) : '';
+								if ($fp) fclose($fp);
+								if (strpos($first, 'event:') !== false) $flash .= ' The Allmon2 live feed answered.';
+								else $error = 'Saved, but the Allmon2 live feed did not answer. Check the address and that its page opens without a login.';
+							} elseif (!empty($snap['live']['ws'])) $flash .= ' The live feed was found.';
 							else $error = 'Saved, but the live feed failed: '.($snap['live']['error'] ?? 'unknown problem');
 						}
 					}
@@ -422,8 +429,8 @@ function sw($name, $label, $on) {
 				<p class="sub"><?= $settings['asl_node'] !== '' ? 'Saved: node '.h($settings['asl_node']).'.' : 'Not set yet.' ?> The node's links show on the main page under the TheLinkBox list, with the live diagram and the AllStar network map. Leave it empty to hide that section.</p>
 			</div>
 			<div class="card"><h3>Real-time feed (optional)</h3>
-				<label class="fld">Allmon3 address<input type="text" name="asl_live_base" value="<?= h($settings['asl_live_base']) ?>" placeholder="https://example.org/allmon3/" autocapitalize="off" autocorrect="off"></label>
-				<p class="sub">Without this, the list comes from AllStarLink's public stats and updates about once a minute. With the web address of your node's Allmon3 dashboard, the list is live and shows who is talking.</p>
+				<label class="fld">Allmon3 or Allmon2 address<input type="text" name="asl_live_base" value="<?= h($settings['asl_live_base']) ?>" placeholder="https://example.org/allmon3/ or https://example.org/allmon2/" autocapitalize="off" autocorrect="off"></label>
+				<p class="sub">Without this, the list comes from AllStarLink's public stats and updates about once a minute. With the web address of your node's Allmon3 or Allmon2 dashboard (the address must contain allmon2 for Allmon2), the list is live and shows who is talking. Allmon2 needs its page to be viewable without logging in.</p>
 			</div>
 			<div class="btns"><button class="primary" type="submit">Save</button><button type="submit" name="test" value="1">Save and test</button></div>
 		</form>

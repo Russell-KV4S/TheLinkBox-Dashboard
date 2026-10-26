@@ -9,7 +9,7 @@ A modern, mobile-friendly dashboard for a [TheLinkBox](http://k5nx.com/TheLinkBo
 - **Live network diagram:** TheLinkBox and your AllStar node as two hubs, every station around them, the bridge between them. Whoever is talking pulses and audio animates toward the hubs.
 - **AllStar panel (optional):** what is linked to your AllStar node, with callsigns linked to QRZ, who is talking, and the AllStarLink network map.
 - Callsigns link to QRZ; IRLP nodes link to their IRLP status page.
-- **Last heard:** every station that talked, how long its last over was and how much it talked in the last 24 hours, plus a 24-hour timeline of who was on the air and when. Logged by the `tlb-notify` service (one small file per day under `/var/lib/tlb-admin/heard/`, kept 1 to 30 days). Talk that comes in over the AllStar link is credited to the AllStar node that keyed up, read from the node's Allmon3 live feed when its address is set.
+- **Last heard:** every station that talked, how long its last over was and how much it talked in the last 24 hours, plus a 24-hour timeline of who was on the air and when. Logged by the `tlb-notify` service (one small file per day under `/var/lib/tlb-admin/heard/`, kept 1 to 30 days). Talk that comes in over the AllStar link is credited to the AllStar node that keyed up, read from the node's Allmon3 or Allmon2 live feed when its address is set.
 - **Server health:** CPU load, memory, disk and live network traffic (and temperature on machines that have a sensor).
 - **Browser alerts (optional, per visitor):** a chime and a phone or desktop notification when someone starts talking, or when a watched callsign connects. Each visitor turns it on for their own device; the site owner can switch the feature off for everyone.
 
@@ -69,7 +69,12 @@ The network map is fetched from AllStarLink and cached on your server (the last 
 - `tlbcmd` supplies the connection list, protocols and who is talking. For EchoLink stations, talking is read from the port table.
 - AllStarLink's public stats API supplies callsigns and locations for linked nodes (cached; at most a few new lookups per request).
 - Allmon3's WebSocket, if configured, is read directly by the visitor's browser for real-time talking.
+- For Allmon2 (address contains `allmon2`), the notifier reads its event stream instead and relays the latest state through `asl.php`, so the node's Allmon2 page must be viewable without a login.
 - Adding an alert channel is a short entry in `irlp/tlb-channels.php` plus one send function.
+
+## Versions
+
+The current version is shown at the bottom of the page. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Security notes
 

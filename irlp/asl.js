@@ -1,5 +1,5 @@
 // AllStar panel: node list from asl.php (about once a minute), upgraded to a real-time
-// Allmon3 WebSocket feed when one is configured in the admin page.
+// Allmon3 WebSocket feed (or an Allmon2 feed relayed by the notifier through asl.php) when one is set in the admin page.
 (function () {
 	var sec = document.getElementById('asl');
 	if (!sec) return;
@@ -9,6 +9,7 @@
 	var info = {};          // node number -> {call, where, site}
 	var aslIp = '';         // the node's IP, used to spot which TheLinkBox connection is the AllStar bridge
 	var ws = null, liveUrl = null, liveOn = false, retryMs = 5000, retryTimer = null;
+	var every = 20000, lastPoll = 0;   // poll gap; drops to a couple of seconds while an Allmon2 feed is live
 
 	function el(tag, cls, text) {
 		var e = document.createElement(tag);
@@ -76,14 +77,23 @@
 		} }));
 	}
 
-	function poll() {
+	function poll(force) {
 		if (document.hidden && !window.tlbKeepAlive) return; // alerts.js sets tlbKeepAlive when alerts are on
+		if (force !== true && Date.now() - lastPoll < every - 300) return;
+		lastPoll = Date.now();
 		fetch('asl.php', { cache: 'no-store' })
 			.then(function (r) { if (!r.ok) throw 0; return r.json(); })
 			.then(function (d) {
 				if (!d) return;
 				aslIp = d.ip || '';
 				(d.links || []).forEach(function (l) { info[l.node] = l; });
+				var feed = d.live && d.live.feed;
+				every = feed ? 2500 : 20000;
+				if (feed && !ws) {
+					render(feed.list || [], feed.keyed || '', false);
+					setState('Live', true);
+					return;
+				}
 				if (d.live && d.live.ws && d.live.ws !== liveUrl) { liveUrl = d.live.ws; connect(); }
 				if (!liveOn) {
 					if (d.error) { render([], '', false); rowsEl.firstChild.textContent = d.error; setState('Unavailable', false); return; }
@@ -114,19 +124,19 @@
 			liveOn = true;
 			render(list, n.CONNKEYED === true ? n.CONNKEYEDNODE : '', n.RXKEYED === true);
 			setState('Live', true);
-			if (unknown) setTimeout(poll, 1500); // pick up callsign details for a node we haven't seen
+			if (unknown) setTimeout(function () { poll(true); }, 1500); // pick up callsign details for a node we haven't seen
 		};
 		ws.onclose = function () {
 			liveOn = false;
 			clearTimeout(retryTimer);
 			retryTimer = setTimeout(connect, retryMs);
 			retryMs = Math.min(retryMs * 2, 60000);
-			poll();
+			poll(true);
 		};
 		ws.onerror = function () { try { ws.close(); } catch (e) {} };
 	}
 
-	document.addEventListener('visibilitychange', function () { if (!document.hidden) { poll(); connect(); } });
-	poll();
-	setInterval(poll, 20000);
+	document.addEventListener('visibilitychange', function () { if (!document.hidden) { poll(true); connect(); } });
+	poll(true);
+	setInterval(poll, 1000);
 })();
