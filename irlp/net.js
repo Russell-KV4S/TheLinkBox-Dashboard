@@ -66,8 +66,8 @@
 			var aslTalk = !!asl.localTx;
 			list.forEach(function (l, i) {
 				var tx = asl.talking !== '' && String(asl.talking) === String(l.node);
-				var n = { id: 'a:' + l.node, x: pb[i][0], y: pb[i][1], label: l.call || l.node, sub: l.call ? l.node : trunc(l.desc || l.mode, 16), cls: 'p-other', tx: tx,
-					link: l.call ? 'https://www.qrz.com/db/' + encodeURIComponent(l.call) : null };
+				var n = { id: 'a:' + l.node, x: pb[i][0], y: pb[i][1], label: l.call || l.num || l.node, sub: l.call ? (l.num || l.node) : trunc(l.desc || l.mode, 16), cls: 'p-other', tx: tx,
+					link: l.link || null };
 				nodes.push(n);
 				edges.push({ id: 'e:' + n.id, a: n, b: B, flow: tx });
 				aslTalk = aslTalk || tx;

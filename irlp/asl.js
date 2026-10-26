@@ -26,6 +26,20 @@
 		return m ? m[1] : '';
 	}
 
+	// QRZ page for a callsign (EchoLink -L/-R suffix dropped); '' for names like EchoLink conferences "*DX-LINK*".
+	function linkOf(call) {
+		var c = call.replace(/-[LR]$/, '');
+		return /^[A-Z0-9]{1,3}[0-9][A-Z]{1,4}$/.test(c) ? 'https://www.qrz.com/db/' + encodeURIComponent(c) : '';
+	}
+
+	// How the node number is shown: "EchoLink 356937" for EchoLink stations (AllStar 3356937).
+	function numOf(n) {
+		var inf = info[n] || {};
+		if (inf.el) return 'EchoLink ' + inf.el;
+		var m = /^3(\d{6})$/.exec(String(n));
+		return m ? 'EchoLink ' + m[1] : String(n);
+	}
+
 	function setState(text, live) {
 		stateEl.textContent = text;
 		stateEl.className = live ? 'live' : 'sub';
@@ -44,18 +58,19 @@
 			row.appendChild(el('span', 'av p-other', 'AS'));
 			var mid = el('div');
 			var b = el('b');
-			if (call) {
+			var link = call ? linkOf(call) : '';
+			if (link) {
 				var a = el('a', '', call);
-				a.href = 'https://www.qrz.com/db/' + encodeURIComponent(call);
+				a.href = link;
 				a.target = '_blank'; a.rel = 'noopener';
 				b.appendChild(a);
-			} else { b.textContent = r.node; }
+			} else { b.textContent = call || numOf(r.node); }
 			mid.appendChild(b);
 			var bits = [];
-			if (call) bits.push(r.node);
+			if (call) bits.push(numOf(r.node));
 			var place = inf.where || inf.site || '';
 			if (place) bits.push(place);
-			else if (r.desc) bits.push(r.desc);
+			else if (r.desc && !/^echolink$/i.test(r.desc)) bits.push(r.desc);
 			if (r.mode) bits.push(r.mode);
 			mid.appendChild(el('div', 'sub', bits.join(' · ')));
 			row.appendChild(mid);
@@ -73,7 +88,10 @@
 		else { rowsEl.innerHTML = ''; rowsEl.appendChild(frag); }
 		document.dispatchEvent(new CustomEvent('asl:data', { detail: {
 			node: node, ip: aslIp, talking: talking ? String(talking) : '', localTx: !!localTx,
-			list: list.map(function (r) { return { node: String(r.node), call: callOf(r.node, r.desc), mode: r.mode, desc: r.desc }; })
+			list: list.map(function (r) {
+				var c = callOf(r.node, r.desc);
+				return { node: String(r.node), num: numOf(r.node), call: c, link: c ? linkOf(c) : '', mode: r.mode, desc: (info[r.node] || {}).site || r.desc };
+			})
 		} }));
 	}
 
@@ -87,6 +105,7 @@
 				if (!d) return;
 				aslIp = d.ip || '';
 				(d.links || []).forEach(function (l) { info[l.node] = l; });
+				Object.keys(d.names || {}).forEach(function (k) { info[k] = d.names[k]; });
 				var feed = d.live && d.live.feed;
 				every = feed ? 2500 : 20000;
 				if (feed && !ws) {
