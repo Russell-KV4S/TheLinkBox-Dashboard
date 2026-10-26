@@ -4,6 +4,11 @@ Versions follow `MAJOR.MINOR.PATCH`: MAJOR for a redesign or a change that needs
 MINOR for new features, PATCH for fixes. The number lives in `TLB_VERSION` in `irlp/tlb-lib.php` and is
 shown in the page footer. Bump it with every release, and add a section here.
 
+## 2.4.1
+- Last heard: a station's name now comes from its newest over, so EchoLink stations heard before 2.3.0 show their
+  callsign instead of "EchoLink NNNNNN". Older EchoLink overs also get their callsign from EchoLink's station list.
+- Last heard: EchoLink stations are named by callsign alone; "EchoLink NNNNNN · via ..." stays on the line below.
+
 ## 2.4.0
 - IRLP stations (`stnNNNN`) show their callsign and city, read from the node's status.irlp.net page and kept
   for a day, with "IRLP NNNN" underneath. Used in the station list, network diagram, browser alerts,
