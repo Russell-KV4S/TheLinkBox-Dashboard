@@ -118,7 +118,7 @@
 		tlbTalkers = [];
 		d.rows.forEach(function (r) {
 			now[r.node] = r;
-			if (r.talking) { talk[r.node] = r; tlbTalkers.push(r.node); }
+			if (r.talking) { talk[r.node] = r; tlbTalkers.push(r.call || r.node); }
 		});
 		if (prevTlb) {
 			Object.keys(talk).forEach(function (n) {
@@ -128,11 +128,12 @@
 					// the AllStar bridge: name the AllStar station instead, if the live AllStar feed knows who it is
 					setTimeout(function () { if (Date.now() - lastAslTalkAt > 4000) talkStarted(r.node + ' (AllStar)', conf, n); }, 1500);
 				} else {
-					talkStarted(r.node, r.proto + ' · ' + conf, n);
+					talkStarted(r.call ? r.call + ' (' + r.node + ')' : r.node, r.proto + ' · ' + conf, n);
 				}
 			});
 			Object.keys(now).forEach(function (n) {
-				if (!prevTlb[n]) connected(n, n, now[n].proto + ' · ' + conf, n);
+				var c = now[n].call;
+				if (!prevTlb[n]) connected(c || n, c ? c + ' (' + n + ')' : n, now[n].proto + ' · ' + conf, n);
 			});
 		}
 		prevTlb = now; prevTlbTalk = talk;

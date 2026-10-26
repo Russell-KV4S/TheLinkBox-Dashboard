@@ -74,8 +74,15 @@ function tlb_heard_who(array $e) {
 			'link' => $c !== '' ? tlb_node_link($c) : ($el !== '' ? '' : 'https://stats.allstarlink.org/stats/'.rawurlencode($a)),
 			'p' => 'AllStar'];
 	}
-	return ['k' => (string)$e['n'], 'name' => (string)$e['n'], 'sub' => !empty($e['l']) ? 'AllStar link' : (string)($e['p'] ?? ''),
-		'link' => tlb_node_link((string)$e['n']), 'p' => (string)($e['p'] ?? '')];
+	$n = (string)$e['n'];
+	$i = tlb_station_info($n, false);   // IRLP callsign from the cache (api.php does the lookups)
+	if ($i && $i['call'] !== '') {
+		$num = substr($i['num'], 5);
+		return ['k' => $n, 'name' => $i['call'].' ('.$num.')', 'sub' => $i['num'].($i['where'] !== '' ? ' · '.$i['where'] : ''),
+			'link' => tlb_node_link($n), 'p' => (string)($e['p'] ?? '')];
+	}
+	return ['k' => $n, 'name' => $n, 'sub' => !empty($e['l']) ? 'AllStar link' : (string)($e['p'] ?? ''),
+		'link' => tlb_node_link($n), 'p' => (string)($e['p'] ?? '')];
 }
 
 // Everything the "Last heard" section shows.
