@@ -250,7 +250,7 @@ while (true) {
 					$known[$n] = $u + ($protos[$n] ?? ['ip' => '', 'proto' => '']) + ['since' => $now];
 					tlb_recent_add($n);
 					if (tlb_any_channel_ready($s) && $s['on_connect'] && !$skip($u['attrs'])) {
-						$msg = $s['server_label']." · connected\n".$n.
+						$msg = $s['server_label']." · connected\n".tlb_station_label($n).
 							($known[$n]['proto'] ? ' ('.$known[$n]['proto'].')' : '').
 							($known[$n]['ip'] ? ' from '.$known[$n]['ip'] : '')."\nUsers now: ".count($users);
 						send($s, 'connect', $msg);
@@ -265,7 +265,7 @@ while (true) {
 				unset($known[$n], $missing[$n]);
 				if (tlb_any_channel_ready($s) && $s['on_disconnect'] && !$skip($k['attrs'])) {
 					$mins = max(0, round(($now - $k['since']) / 60));
-					$msg = $s['server_label']." · disconnected\n".$n.
+					$msg = $s['server_label']." · disconnected\n".tlb_station_label($n).
 						($k['proto'] ? ' ('.$k['proto'].')' : '').' left after '.$mins."m\nUsers now: ".count($users);
 					send($s, 'disconnect', $msg);
 				}

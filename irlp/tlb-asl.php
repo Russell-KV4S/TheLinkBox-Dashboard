@@ -125,6 +125,63 @@ function tlb_echolink_nodes() {
 	return $map;
 }
 
+// TheLinkBox names IRLP stations "stnNNNN". Returns the IRLP node number, or ''.
+function tlb_irlp_num($node) {
+	return preg_match('/^stn(\d{4})$/', (string)$node, $m) ? $m[1] : '';
+}
+
+// Callsign and place of an IRLP node, read from its status.irlp.net page and cached for a day
+// (an hour when the page had no callsign or could not be fetched). With $fetch false only the cache is used.
+const IRLP_NODE_URL = 'https://status.irlp.net/index.php?PSTART=11&nodeid=';
+function tlb_irlp_cache($num) { return TLB_CACHE_DIR.'/irlp-'.$num.'.json'; }
+function tlb_irlp_stale($num) {
+	$f = tlb_irlp_cache($num);
+	if (!is_file($f)) return true;
+	$j = json_decode((string)@file_get_contents($f), true);
+	return time() - filemtime($f) >= (!empty($j['call']) ? 86400 : 3600);
+}
+function tlb_irlp_info($num, $fetch = true) {
+	$none = ['call' => '', 'where' => ''];
+	if (!preg_match('/^\d{4}$/', (string)$num)) return $none;
+	$f = tlb_irlp_cache($num);
+	$old = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
+	if (!is_array($old)) $old = null;
+	if (!$fetch || ($old && !tlb_irlp_stale($num))) return ($old ?: []) + $none;
+	$ctx = stream_context_create(['http' => ['timeout' => 4, 'header' => "User-Agent: TheLinkBox-Dashboard/1.0\r\n"]]);
+	$body = @file_get_contents(IRLP_NODE_URL.$num, false, $ctx);
+	if (!is_dir(TLB_CACHE_DIR)) @mkdir(TLB_CACHE_DIR, 0750, true);
+	if ($body === false) {   // keep what we had; try again in an hour
+		if (is_array($old)) { @touch($f); return $old + $none; }
+		$new = $none;
+	} else {
+		$cell = function ($label) use ($body) {
+			return preg_match('#<b>\s*'.$label.'\s*</b>\s*</td>\s*<td[^>]*>([^<]*)#i', $body, $m)
+				? trim(html_entity_decode($m[1], ENT_QUOTES, 'UTF-8')) : '';
+		};
+		$call = strtoupper($cell('Node Callsign'));
+		if (!preg_match('/^[A-Z0-9\/-]{3,12}$/', $call)) $call = '';
+		$where = implode(', ', array_filter([$cell('Node City'), $cell('Node Province\/State')], 'strlen'));
+		$new = ['call' => $call, 'where' => substr($where, 0, 60)];
+	}
+	@file_put_contents($f.'.tmp', json_encode($new), LOCK_EX);
+	@rename($f.'.tmp', $f);
+	return $new;
+}
+
+// Callsign, place and node number of a TheLinkBox station when it is an IRLP node, else null.
+// $fetch false = cached answers only (for pages that list many stations at once).
+function tlb_station_info($node, $fetch = true) {
+	$num = tlb_irlp_num($node);
+	if ($num === '') return null;
+	return tlb_irlp_info($num, $fetch) + ['num' => 'IRLP '.$num];
+}
+
+// How a station is named in alerts: "W3NH (stn8706)" when we know the callsign, else the node name.
+function tlb_station_label($node) {
+	$i = tlb_station_info($node);
+	return $i && $i['call'] !== '' ? $i['call'].' ('.$node.')' : (string)$node;
+}
+
 // Who and where a node is, from AllStarLink's public stats (cached for 6 hours),
 // or for EchoLink nodes from EchoLink's station list ('el' => EchoLink node number).
 function tlb_asl_nodeinfo($n) {

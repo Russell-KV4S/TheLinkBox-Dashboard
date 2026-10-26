@@ -4,7 +4,7 @@
 const TLB_STATE_DIR = '/var/lib/tlb-admin';
 const TLB_SETTINGS  = '/var/lib/tlb-admin/settings.json';
 const TLB_BIN       = '/usr/local/bin/tlbcmd';
-const TLB_VERSION   = '2.3.0';   // dashboard release, shown in the page footer; see CHANGELOG.md
+const TLB_VERSION   = '2.4.0';   // dashboard release, shown in the page footer; see CHANGELOG.md
 
 // Run one tlbcmd command and return its output without the leading numeric status line.
 function tlb_cmd($text) {
@@ -105,6 +105,7 @@ function tlb_snapshot() {
 	$talking = $users ? tlb_talking() : [];
 	$rows = [];
 	$tx = 0;
+	$lookups = 0;   // new IRLP callsign lookups this request (a couple at most, so the page stays quick)
 	foreach ($users as $node => $u) {
 		if (strpos($u['attrs'], 'L') !== false) continue; // hide lurkers
 		$p    = $protos[$node] ?? ['ip' => '', 'proto' => 'Unknown'];
@@ -113,8 +114,14 @@ function tlb_snapshot() {
 		$names = [];
 		foreach (str_split($u['attrs']) as $c) if (isset($attributes[$c])) $names[] = $attributes[$c];
 		$link = tlb_node_link($node);
-		$rows[] = ['node' => $node, 'proto' => $p['proto'], 'ip' => $p['ip'], 'time' => $u['time'],
+		$row = ['node' => $node, 'proto' => $p['proto'], 'ip' => $p['ip'], 'time' => $u['time'],
 			'talking' => $isTx, 'attrs' => implode(', ', $names), 'link' => $link];
+		if (($num = tlb_irlp_num($node)) !== '') {
+			$fetch = $lookups < 2 && tlb_irlp_stale($num);
+			if ($fetch) $lookups++;
+			$row += tlb_station_info($node, $fetch);   // call, where, num
+		}
+		$rows[] = $row;
 	}
 	$conf = trim(str_replace('"', '', (string)preg_replace('/^.*=/s', '', tlb_cmd('set ConferenceID'))));
 	$up   = trim(str_replace('Uptime', '', tlb_cmd('uptime -q')), " :\r\n");

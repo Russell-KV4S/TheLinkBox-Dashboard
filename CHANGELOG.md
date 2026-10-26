@@ -4,6 +4,11 @@ Versions follow `MAJOR.MINOR.PATCH`: MAJOR for a redesign or a change that needs
 MINOR for new features, PATCH for fixes. The number lives in `TLB_VERSION` in `irlp/tlb-lib.php` and is
 shown in the page footer. Bump it with every release, and add a section here.
 
+## 2.4.0
+- IRLP stations (`stnNNNN`) show their callsign and city, read from the node's status.irlp.net page and kept
+  for a day, with "IRLP NNNN" underneath. Used in the station list, network diagram, browser alerts,
+  Last heard log and the connect/disconnect alerts.
+
 ## 2.3.0
 - EchoLink stations linked to the AllStar node (shown by AllStar as 3 + the EchoLink node number) now show
   their callsign and description, looked up in EchoLink's public station list (fetched at most every 10 minutes).

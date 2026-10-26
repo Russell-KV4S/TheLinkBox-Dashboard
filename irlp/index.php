@@ -64,8 +64,11 @@ function rate($bps) { $k = $bps * 8 / 1000; return $k >= 1000 ? number_format($k
 		<div class="row<?= $r['talking'] ? ' talk' : '' ?>">
 			<span class="av <?= h($pc) ?>"><?= h(strtoupper(substr($r['proto'], 0, 2))) ?></span>
 			<div>
-				<b><?php if ($r['link']): ?><a href="<?= h($r['link']) ?>" target="_blank" rel="noopener"><?= h($r['node']) ?></a><?php else: echo h($r['node']); endif; ?></b>
-				<div class="sub"><?= h($r['attrs'] ?: 'Idle') ?></div>
+				<?php $nm = !empty($r['call']) ? $r['call'] : $r['node'];
+				$sub = !empty($r['call']) ? array_filter([$r['num'], $r['where']], 'strlen') : [];
+				$sub[] = $r['attrs'] ?: 'Idle'; ?>
+				<b><?php if ($r['link']): ?><a href="<?= h($r['link']) ?>" target="_blank" rel="noopener"><?= h($nm) ?></a><?php else: echo h($nm); endif; ?></b>
+				<div class="sub"><?= h(implode(' · ', $sub)) ?></div>
 			</div>
 			<span class="meta"><span class="chip <?= h($pc) ?>"><?= h($r['proto']) ?></span></span>
 			<span class="meta"><?php if ($r['ip']): ?><a href="https://whois.arin.net/ui/query.do?queryinput=<?= h(urlencode($r['ip'])) ?>" target="_blank" rel="noopener"><?= h($r['ip']) ?></a><?php endif; ?></span>

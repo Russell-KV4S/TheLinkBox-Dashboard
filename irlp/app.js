@@ -26,13 +26,17 @@
 			row.appendChild(el('span', 'av ' + pc, r.proto.slice(0, 2).toUpperCase()));
 			var mid = el('div');
 			var b = el('b');
+			var name = r.call || r.node;   // IRLP stations: callsign, with the node number on the line below
 			if (r.link) {
-				var a = el('a', '', r.node);
+				var a = el('a', '', name);
 				a.href = r.link; a.target = '_blank'; a.rel = 'noopener';
 				b.appendChild(a);
-			} else { b.textContent = r.node; }
+			} else { b.textContent = name; }
 			mid.appendChild(b);
-			mid.appendChild(el('div', 'sub', r.attrs || 'Idle'));
+			var sub = r.call ? [r.num || r.node] : [];
+			if (r.call && r.where) sub.push(r.where);
+			sub.push(r.attrs || 'Idle');
+			mid.appendChild(el('div', 'sub', sub.join(' · ')));
 			row.appendChild(mid);
 			var m1 = el('span', 'meta'); m1.appendChild(el('span', 'chip ' + pc, r.proto)); row.appendChild(m1);
 			var m2 = el('span', 'meta');

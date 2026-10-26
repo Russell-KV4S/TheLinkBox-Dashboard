@@ -51,7 +51,7 @@
 		var pa = two ? arc(A.x, leaves.length, 105, 255, rA) : arc(A.x, leaves.length, -180, 180, rA); // one station sits to the right
 		var tlbTalk = false;
 		leaves.forEach(function (r, i) {
-			var n = { id: 't:' + r.node, x: pa[i][0], y: pa[i][1], label: trunc(r.node, 12), sub: r.proto, cls: protoCls[r.proto] || 'p-other', tx: !!r.talking, link: r.link };
+			var n = { id: 't:' + r.node, x: pa[i][0], y: pa[i][1], label: trunc(r.call || r.node, 12), sub: r.call ? (r.num || r.proto) : r.proto, cls: protoCls[r.proto] || 'p-other', tx: !!r.talking, link: r.link };
 			nodes.push(n);
 			edges.push({ id: 'e:' + n.id, a: n, b: A, flow: n.tx });
 			tlbTalk = tlbTalk || n.tx;
