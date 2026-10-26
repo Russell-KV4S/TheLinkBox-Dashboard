@@ -1,5 +1,5 @@
 [Unit]
-Description=TheLinkBox connect/disconnect alerts
+Description=TheLinkBox Telegram notifier
 After=network-online.target
 
 [Service]

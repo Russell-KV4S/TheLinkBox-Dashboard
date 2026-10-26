@@ -17,6 +17,7 @@
 		document.getElementById('st-talking').textContent = d.talking;
 		document.getElementById('st-uptime').textContent = d.uptime || '-';
 		document.getElementById('st-version').textContent = d.version || '-';
+		if (d.sys) renderSys(d.sys);
 		var frag = document.createDocumentFragment();
 		if (!d.rows.length) frag.appendChild(el('div', 'empty', 'Nobody is connected right now.'));
 		d.rows.forEach(function (r) {
@@ -46,6 +47,19 @@
 			frag.appendChild(row);
 		});
 		rowsEl.replaceChildren ? rowsEl.replaceChildren(frag) : (rowsEl.innerHTML = '', rowsEl.appendChild(frag));
+	}
+
+	// server health cards (only on the page when turned on in admin)
+	function set(id, text) { var e = document.getElementById(id); if (e) e.textContent = text; }
+	function gb(b) { return (b / 1073741824).toFixed(2); }
+	function pct(u) { return u.total ? Math.round(u.used / u.total * 100) + '%' : '-'; }
+	function rate(bps) { var k = bps * 8 / 1000; return k >= 1000 ? (k / 1000).toFixed(1) + ' Mb/s' : k.toFixed(k < 10 ? 1 : 0) + ' kb/s'; }
+	function renderSys(s) {
+		set('hs-cpu', s.load.toFixed(2));
+		if (s.mem) { set('hs-mem', pct(s.mem)); set('hs-mem-sub', gb(s.mem.used) + ' / ' + gb(s.mem.total) + ' GB'); }
+		if (s.disk) { set('hs-disk', pct(s.disk)); set('hs-disk-sub', gb(s.disk.used) + ' / ' + gb(s.disk.total) + ' GB'); }
+		if (s.net) { set('hs-net', rate(s.net.rx + s.net.tx)); set('hs-net-sub', '↓ ' + rate(s.net.rx) + ' · ↑ ' + rate(s.net.tx)); }
+		if (s.temp !== undefined) set('hs-temp', Math.round(s.temp) + '°C');
 	}
 
 	var live = document.getElementById('live');

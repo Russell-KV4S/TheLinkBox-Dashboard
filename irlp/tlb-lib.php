@@ -13,6 +13,7 @@ function tlb_cmd($text) {
 
 require_once __DIR__.'/tlb-channels.php';
 require_once __DIR__.'/tlb-asl.php';
+require_once __DIR__.'/tlb-heard.php';
 
 function tlb_default_settings() {
 	return tlb_channel_defaults() + [
@@ -25,6 +26,11 @@ function tlb_default_settings() {
 		'on_admin'      => true,
 		'skip_lurkers'  => true,
 		'skip_permanent'=> false,
+		'heard_public'  => true,
+		'heard_days'    => 7,
+		'server_stats'  => true,
+		'footer_url'    => '',
+		'footer_text'   => '',
 	];
 }
 
@@ -76,6 +82,13 @@ function tlb_protocols() {
 	return $p;
 }
 
+// Where a node's name links to: IRLP status for stnNNNN nodes, QRZ for callsigns, else ''.
+function tlb_node_link($node) {
+	if (preg_match('/^stn(\d+)$/', $node, $m)) return 'https://status.irlp.net/index.php?PSTART=11&nodeid='.$m[1];
+	$call = strtoupper(preg_replace('/-[LR]$/i', '', $node));
+	return preg_match('/^[A-Z0-9]{1,3}[0-9][A-Z]{1,4}$/', $call) ? 'https://www.qrz.com/db/'.$call : '';
+}
+
 // Everything the public dashboard shows, as plain data (used by index.php and api.php).
 function tlb_snapshot() {
 	$attributes = [
@@ -98,13 +111,7 @@ function tlb_snapshot() {
 		$tx  += $isTx ? 1 : 0;
 		$names = [];
 		foreach (str_split($u['attrs']) as $c) if (isset($attributes[$c])) $names[] = $attributes[$c];
-		$link = '';
-		if (preg_match('/^stn(\d+)$/', $node, $m)) {
-			$link = 'https://status.irlp.net/index.php?PSTART=11&nodeid='.$m[1];
-		} else {
-			$call = strtoupper(preg_replace('/-[LR]$/i', '', $node));
-			if (preg_match('/^[A-Z0-9]{1,3}[0-9][A-Z]{1,4}$/', $call)) $link = 'https://www.qrz.com/db/'.$call;
-		}
+		$link = tlb_node_link($node);
 		$rows[] = ['node' => $node, 'proto' => $p['proto'], 'ip' => $p['ip'], 'time' => $u['time'],
 			'talking' => $isTx, 'attrs' => implode(', ', $names), 'link' => $link];
 	}
@@ -147,4 +154,49 @@ function tlb_acl_entries($which) {
 		$e[] = [$p[0], (isset($p[1]) && $p[1] !== '-') ? $p[1] : ''];
 	}
 	return $e;
+}
+
+// ---- server health (the cards at the bottom of the main page) ----
+const TLB_NET_SAMPLE = '/var/lib/tlb-admin/cache/net-sample.json';
+
+// CPU load, memory, disk, network traffic and (when the machine has a sensor) temperature.
+function tlb_sysinfo() {
+	$cores = max(1, (int)@shell_exec('nproc 2>/dev/null'));
+	$load  = sys_getloadavg() ?: [0, 0, 0];
+	$out = ['load' => round($load[0], 2), 'load5' => round($load[1], 2), 'cores' => $cores];
+
+	$mem = [];
+	foreach (@file('/proc/meminfo') ?: [] as $line) {
+		if (preg_match('/^(MemTotal|MemAvailable):\s+(\d+)/', $line, $m)) $mem[$m[1]] = $m[2] * 1024;
+	}
+	if (!empty($mem['MemTotal'])) $out['mem'] = ['used' => $mem['MemTotal'] - ($mem['MemAvailable'] ?? 0), 'total' => $mem['MemTotal']];
+
+	$dt = @disk_total_space('/');
+	if ($dt) $out['disk'] = ['used' => $dt - (float)@disk_free_space('/'), 'total' => $dt];
+
+	// network: bytes per second across real interfaces, from the change since the last sample
+	$rx = $tx = 0;
+	foreach (array_slice(@file('/proc/net/dev') ?: [], 2) as $line) {
+		$p = preg_split('/[\s:]+/', trim($line));
+		if (count($p) < 10 || $p[0] === 'lo' || strpos($p[0], 'docker') === 0 || strpos($p[0], 'veth') === 0) continue;
+		$rx += (float)$p[1];
+		$tx += (float)$p[9];
+	}
+	$now  = microtime(true);
+	$prev = @json_decode(@file_get_contents(TLB_NET_SAMPLE), true);
+	if (is_array($prev) && $now - $prev['t'] >= 1 && $now - $prev['t'] < 120 && $rx >= $prev['rx'] && $tx >= $prev['tx']) {
+		$out['net'] = ['rx' => ($rx - $prev['rx']) / ($now - $prev['t']), 'tx' => ($tx - $prev['tx']) / ($now - $prev['t'])];
+	} elseif (is_array($prev) && isset($prev['rate'])) {
+		$out['net'] = $prev['rate'];
+	}
+	if (!is_array($prev) || $now - $prev['t'] >= 1) {
+		if (!is_dir(dirname(TLB_NET_SAMPLE))) @mkdir(dirname(TLB_NET_SAMPLE), 0750, true);
+		@file_put_contents(TLB_NET_SAMPLE, json_encode(['t' => $now, 'rx' => $rx, 'tx' => $tx, 'rate' => $out['net'] ?? null]), LOCK_EX);
+	}
+
+	foreach (glob('/sys/class/thermal/thermal_zone*/temp') ?: [] as $f) {
+		$c = (int)@file_get_contents($f) / 1000;
+		if ($c > 0 && $c < 150) { $out['temp'] = round($c, 1); break; }
+	}
+	return $out;
 }
