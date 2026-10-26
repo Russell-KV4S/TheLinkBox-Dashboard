@@ -8,6 +8,23 @@ $set = tlb_load_settings();
 $aslNode = preg_match('/^\d{3,7}$/', $set['asl_node']) ? $set['asl_node'] : '';
 $viewerAlerts = !empty($set['viewer_alerts']);
 $cls = ['IRLP' => 'p-irlp', 'EchoLink' => 'p-echolink', 'RTP' => 'p-rtp'];
+$sys = $set['server_stats'] ? tlb_sysinfo() : null;
+
+// Server health card: label, value, detail line, icon, colour.
+function health_card($id, $label, $value, $sub, $icon, $tone) {
+	$icons = [
+		'cpu'  => '<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+		'mem'  => '<path d="M6 19v-4M10 19v-8M14 19v-11M18 19v-14"/>',
+		'disk' => '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+		'net'  => '<path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/>',
+		'temp' => '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+	];
+	echo '<div class="hs"><div><small>'.h($label).'</small><b id="hs-'.$id.'">'.h($value).'</b><span class="sub" id="hs-'.$id.'-sub">'.h($sub).'</span></div>',
+		'<span class="hic '.$tone.'"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$icons[$icon].'</svg></span></div>';
+}
+function gb($b) { return number_format($b / 1073741824, 2); }
+function pct($u) { return $u['total'] ? round($u['used'] / $u['total'] * 100).'%' : '-'; }
+function rate($bps) { $k = $bps * 8 / 1000; return $k >= 1000 ? number_format($k / 1000, 1).' Mb/s' : number_format($k, $k < 10 ? 1 : 0).' kb/s'; }
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,6 +74,18 @@ $cls = ['IRLP' => 'p-irlp', 'EchoLink' => 'p-echolink', 'RTP' => 'p-rtp'];
 	<?php endforeach; ?>
 	</div>
 
+	<?php if ($set['heard_public']): ?>
+	<section class="heard" id="heard">
+		<h2 class="sec-title">Last heard</h2>
+		<div class="card tl-card">
+			<div class="tl-head"><b>Last 24 hours</b><span class="sub" id="heard-detail">Tap a bar for details</span></div>
+			<div class="tl" id="heard-tl"><div class="empty">Loading&hellip;</div></div>
+		</div>
+		<div class="rows" id="heard-rows"><div class="empty">Loading&hellip;</div></div>
+		<button type="button" class="more" id="heard-more" hidden>Show all</button>
+	</section>
+	<?php endif; ?>
+
 	<section class="asl">
 		<?php if ($aslNode): ?>
 		<h2 class="asl-title">AllStar node <?= h($aslNode) ?> <span id="asl-state" class="sub">Loading&hellip;</span></h2>
@@ -86,18 +115,32 @@ $cls = ['IRLP' => 'p-irlp', 'EchoLink' => 'p-echolink', 'RTP' => 'p-rtp'];
 		</div>
 	</section>
 
+	<?php if ($sys): ?>
+	<section class="health">
+		<h2 class="sec-title">Server</h2>
+		<div class="hstats">
+			<?php health_card('cpu', 'CPU load', number_format($sys['load'], 2), 'Average (1m) · '.$sys['cores'].' core'.($sys['cores'] > 1 ? 's' : ''), 'cpu', 'ic-green');
+			if (isset($sys['mem'])) health_card('mem', 'Memory', pct($sys['mem']), gb($sys['mem']['used']).' / '.gb($sys['mem']['total']).' GB', 'mem', 'ic-orange');
+			if (isset($sys['disk'])) health_card('disk', 'Disk usage', pct($sys['disk']), gb($sys['disk']['used']).' / '.gb($sys['disk']['total']).' GB', 'disk', 'ic-violet');
+			health_card('net', 'Network', isset($sys['net']) ? rate($sys['net']['rx'] + $sys['net']['tx']) : '-', isset($sys['net']) ? '↓ '.rate($sys['net']['rx']).' · ↑ '.rate($sys['net']['tx']) : 'Measuring…', 'net', 'ic-blue');
+			if (isset($sys['temp'])) health_card('temp', 'Temperature', round($sys['temp']).'°C', 'CPU temp', 'temp', 'ic-red'); ?>
+		</div>
+	</section>
+	<?php endif; ?>
+
 	<details class="legend">
 		<summary>What do the status labels mean?</summary>
 		<dl><?php foreach ($d['legend'] as $k => $v) echo '<dt>'.h($k).'</dt><dd>'.h($v).'</dd>'; ?></dl>
 		<p class="sub">IRLP nodes need <code>export ALLOW_EXPERIMENTAL_NODES=YES</code> in their environment file.</p>
 	</details>
 
-	<div class="foot"><a href="http://experimental.irlp.net" target="_blank" rel="noopener">IRLP experimental reflectors</a></div>
+	<div class="foot"><a href="http://experimental.irlp.net" target="_blank" rel="noopener">IRLP experimental reflectors</a><?php if ($set['footer_url'] !== ''): ?><a href="<?= h($set['footer_url']) ?>" target="_blank" rel="noopener"><?= h($set['footer_text'] !== '' ? $set['footer_text'] : preg_replace('#^https?://(www\.)?#i', '', rtrim($set['footer_url'], '/'))) ?></a><?php endif; ?></div>
 	<div class="foot">Dashboard design by Russell, KV4S &middot; <a href="https://github.com/Russell-KV4S/TheLinkBox-Dashboard" target="_blank" rel="noopener">GitHub</a></div>
 </div>
 <script src="net.js"></script>
 <?php if ($viewerAlerts): ?><script src="alerts.js"></script><?php endif; ?>
 <script src="app.js"></script>
 <?php if ($aslNode): ?><script src="asl.js"></script><?php endif; ?>
+<?php if ($set['heard_public']): ?><script src="heard.js"></script><?php endif; ?>
 </body>
 </html>

@@ -9,13 +9,16 @@ A modern, mobile-friendly dashboard for a [TheLinkBox](http://k5nx.com/TheLinkBo
 - **Live network diagram:** TheLinkBox and your AllStar node as two hubs, every station around them, the bridge between them. Whoever is talking pulses and audio animates toward the hubs.
 - **AllStar panel (optional):** what is linked to your AllStar node, with callsigns linked to QRZ, who is talking, and the AllStarLink network map.
 - Callsigns link to QRZ; IRLP nodes link to their IRLP status page.
+- **Last heard:** every station that talked, how long its last over was and how much it talked in the last 24 hours, plus a 24-hour timeline of who was on the air and when. Logged by the `tlb-notify` service (one small file per day under `/var/lib/tlb-admin/heard/`, kept 1 to 30 days). Talk that comes in over the AllStar link is credited to the AllStar node that keyed up, read from the node's Allmon3 live feed when its address is set.
+- **Server health:** CPU load, memory, disk and live network traffic (and temperature on machines that have a sensor).
 - **Browser alerts (optional, per visitor):** a chime and a phone or desktop notification when someone starts talking, or when a watched callsign connects. Each visitor turns it on for their own device; the site owner can switch the feature off for everyone.
 
 **Admin area** (HTTPS only, password protected)
 - **Commands:** connected-now list with Disconnect and Ban buttons, Connect/Monitor by node, and a recent-nodes dropdown.
 - **Allow list and Ban list:** view, add and remove entries.
 - **AllStar:** set your node number (and optionally your Allmon3 address for real-time talking).
-- **Alerts:** connect/disconnect/admin alerts sent to Telegram, Slack, Discord, ntfy, Pushover, email (SMTP) or a generic JSON webhook (Home Assistant, n8n, Zapier and so on). Everything is configured from the page; there are no files to edit.
+- **Settings:** the alert channels below, plus switches for the Last heard and server health sections, how long to keep the log, a clear-log button and an optional custom footer link.
+- **Alerts (in Settings):** connect/disconnect/admin alerts sent to Telegram, Slack, Discord, ntfy, Pushover, email (SMTP) or a generic JSON webhook (Home Assistant, n8n, Zapier and so on). Everything is configured from the page; there are no files to edit.
 - **Activity:** an audit log of every login and command.
 
 ## Prerequisites

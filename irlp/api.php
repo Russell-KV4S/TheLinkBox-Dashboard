@@ -5,4 +5,5 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 $s = tlb_snapshot();
 unset($s['legend']);
+if (tlb_load_settings()['server_stats']) $s['sys'] = tlb_sysinfo();
 echo json_encode($s);

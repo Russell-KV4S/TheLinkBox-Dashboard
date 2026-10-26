@@ -14,6 +14,7 @@ const IDLE_SECS    = 1200;   // log out after 20 min idle
 const MAX_SECS     = 28800;  // ...or 8 hours total
 const MAX_FAILS    = 5;      // failed logins before lockout
 const LOCKOUT_SECS = 900;    // 15 min lockout
+const HEARD_DAYS   = [1 => '1 day', 3 => '3 days', 7 => '7 days', 14 => '14 days', 30 => '30 days'];
 
 // label, tlbcmd text, arg pattern (null = no argument), needs confirm, group (info | node | list)
 $NODE = '/^[A-Za-z0-9][A-Za-z0-9-]{2,15}$/';
@@ -30,7 +31,7 @@ $COMMANDS = [
 	'allow_add'  => ['Allow',      'allow add',    $CALL, false, 'list'],
 	'allow_del'  => ['Remove',     'allow delete', $CALL, false, 'list'],
 ];
-$SECTIONS = ['overview' => 'Overview', 'commands' => 'Commands', 'allow' => 'Allow list', 'ban' => 'Ban list', 'allstar' => 'AllStar', 'alerts' => 'Alerts', 'activity' => 'Activity'];
+$SECTIONS = ['overview' => 'Overview', 'commands' => 'Commands', 'allow' => 'Allow list', 'ban' => 'Ban list', 'allstar' => 'AllStar', 'alerts' => 'Settings', 'activity' => 'Activity'];
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function client_ip() { return $_SERVER['REMOTE_ADDR'] ?? '?'; }
@@ -211,6 +212,16 @@ if ($authed && $do !== '' && $do !== 'login' && $do !== 'logout') {
 				}
 			}
 		}
+	} elseif ($do === 'heardclear') {
+		$section = 'alerts';
+		if (empty($_POST['sure'])) {
+			$error = 'Tick the box to confirm, then press Clear the log.';
+		} else {
+			tlb_heard_clear();
+			audit('HEARD log cleared');
+			notify_admin('Cleared the Last heard log');
+			$flash = 'The Last heard log was cleared.';
+		}
 	} elseif ($do === 'settings') {
 		$section = 'alerts';
 		$s = tlb_load_settings();
@@ -236,8 +247,21 @@ if ($authed && $do !== '' && $do !== 'login' && $do !== 'logout') {
 		if (!$error) {
 			$s = $new + $s;
 			$s['server_label'] = $label !== '' ? $label : 'TheLinkBox';
-			foreach (['on_connect', 'on_disconnect', 'on_admin', 'skip_lurkers', 'skip_permanent', 'viewer_alerts'] as $k) $s[$k] = !empty($_POST[$k]);
-			if (!tlb_save_settings($s)) {
+			foreach (['on_connect', 'on_disconnect', 'on_admin', 'skip_lurkers', 'skip_permanent', 'viewer_alerts', 'heard_public', 'server_stats'] as $k) $s[$k] = !empty($_POST[$k]);
+			$furl  = trim($_POST['footer_url'] ?? '');
+			$ftext = trim(preg_replace('/[\x00-\x1f]/', '', $_POST['footer_text'] ?? ''));
+			if ($furl !== '' && (!preg_match('#^https?://[^\s<>"\']+$#i', $furl) || strlen($furl) > 300)) {
+				$error = 'The footer link should start with http:// or https://';
+			} elseif (strlen($ftext) > 80) {
+				$error = 'The footer link wording is too long. Keep it to about 40 characters.';
+			} else {
+				$s['footer_url'] = $furl;
+				$s['footer_text'] = $ftext;
+			}
+			if (array_key_exists((int)($_POST['heard_days'] ?? 0), HEARD_DAYS)) $s['heard_days'] = (int)$_POST['heard_days'];
+			if ($error) {
+				// nothing saved
+			} elseif (!tlb_save_settings($s)) {
 				$error = 'Couldn\'t save settings. Check that /var/lib/tlb-admin is writable by the web server.';
 			} else {
 				audit('SETTINGS saved');
@@ -411,6 +435,16 @@ function sw($name, $label, $on) {
 				<?php sw('viewer_alerts', 'Show the Alerts button on the main page', $settings['viewer_alerts']); ?>
 				<p class="sub">Lets anyone viewing the dashboard turn on a chime and phone or desktop notifications in their own browser. Turn it off to remove the button for everyone.</p>
 			</div>
+			<div class="card"><h3>Main page</h3>
+				<?php sw('heard_public', 'Show "Last heard" and the 24-hour timeline', $settings['heard_public']);
+				sw('server_stats', 'Show server health (CPU, memory, disk, network)', $settings['server_stats']); ?>
+				<label class="fld" style="margin-top:12px">Footer link address<input type="text" name="footer_url" value="<?= h($settings['footer_url']) ?>" placeholder="https://example.org" autocapitalize="off" autocorrect="off"></label>
+				<label class="fld">Footer link wording<input type="text" name="footer_text" maxlength="40" value="<?= h($settings['footer_text']) ?>" placeholder="Our club website"></label>
+				<p class="sub">Shows as a link at the bottom of the main page, next to the IRLP experimental reflectors link. Leave the address empty to hide it.</p>
+				<label class="fld" style="margin-top:12px">Keep the Last heard log for
+					<select name="heard_days"><?php foreach (HEARD_DAYS as $dv => $dl) echo '<option value="'.$dv.'"'.((int)$settings['heard_days'] === $dv ? ' selected' : '').'>'.h($dl).'</option>'; ?></select></label>
+				<p class="sub">Who talked and for how long is logged by the <code>tlb-notify</code> service, even while the section is hidden. Talk that comes in over the AllStar link is credited to the AllStar station that keyed up when the Allmon3 address is set on the AllStar page.</p>
+			</div>
 			<div class="card"><h3>Send me an alert when</h3>
 				<?php sw('on_connect', 'A node connects', $settings['on_connect']);
 				sw('on_disconnect', 'A node disconnects', $settings['on_disconnect']);
@@ -444,6 +478,12 @@ function sw($name, $label, $on) {
 			<div class="btns"><button class="primary" type="submit">Save settings</button></div>
 		</form>
 		<p class="sub">Alerts are sent by the <code>tlb-notify</code> service. Settings apply within a couple of seconds, no restart needed.</p>
+		<form method="post" class="card" style="margin-top:12px">
+			<input type="hidden" name="do" value="heardclear"><?php field_csrf($csrf); ?>
+			<h3>Clear the Last heard log</h3>
+			<?php sw('sure', 'Yes, delete every logged over', false); ?>
+			<div class="btns" style="margin-top:8px"><button class="danger" type="submit">Clear the log</button></div>
+		</form>
 
 <?php else: ?>
 		<div class="card"><h3>Recent activity</h3>
