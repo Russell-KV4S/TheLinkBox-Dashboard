@@ -67,9 +67,15 @@ function tlb_heard_who(array $e) {
 		$a = (string)$e['a'];
 		$c = strtoupper((string)($e['c'] ?? ''));
 		$el = tlb_echolink_num($a);
+		if ($el !== '' && $c === '') {
+			// overs logged before the callsign lookup existed: fill in from EchoLink's station list
+			$r = tlb_echolink_nodes()[$el] ?? ['', ''];
+			$c = strtoupper((string)$r[0]);
+			if ($r[1] !== '') $e['d'] = $r[1];
+		}
 		$num = $el !== '' ? 'EchoLink '.$el : 'AllStar '.$a;
 		$d = (!empty($e['d']) && strcasecmp($e['d'], 'echolink') !== 0) ? (string)$e['d'] : '';
-		return ['k' => 'asl:'.$a, 'name' => $c !== '' ? $c.' ('.($el !== '' ? $el : $a).')' : ($d !== '' ? $d : $num),
+		return ['k' => 'asl:'.$a, 'name' => $c !== '' ? ($el !== '' ? $c : $c.' ('.$a.')') : ($d !== '' ? $d : $num),   // EchoLink number is on the line below
 			'sub' => $num.($c !== '' && $d !== '' ? ' · '.$d : '').' · via '.$e['n'],
 			'link' => $c !== '' ? tlb_node_link($c) : ($el !== '' ? '' : 'https://stats.allstarlink.org/stats/'.rawurlencode($a)),
 			'p' => 'AllStar'];
@@ -103,7 +109,10 @@ function tlb_heard_feed(array $s) {
 			$stations[$w['k']] = $w + ['last' => 0, 'dur' => 0, 'live' => false, 'overs' => 0, 'total' => 0];
 		}
 		$st = &$stations[$w['k']];
-		if ($end >= $st['last']) { $st['last'] = $end; $st['dur'] = $dur; $st['live'] = $ongoing; }
+		if ($end >= $st['last']) {
+			$st['last'] = $end; $st['dur'] = $dur; $st['live'] = $ongoing;
+			$st = array_merge($st, $w);   // name and details from the newest over (older ones may lack a callsign)
+		}
 		if ($end >= $since) {
 			$st['overs']++;
 			$st['total'] += $end - max((int)$e['s'], $since);
