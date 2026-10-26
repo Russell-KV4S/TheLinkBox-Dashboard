@@ -215,7 +215,7 @@ $aslIpAt = 0;
 $ws = null; $wsUrl = ''; $wsRetry = 0; $wsWait = 10;
 $sse = null; $sseUrl = ''; $sseRetry = 0; $sseWait = 10; $sseSaved = 0;   // Allmon2 stream, used instead of $ws
 $asl = ['node' => '', 'desc' => '', 'at' => 0];   // last AllStar node seen keyed up on Allmon3 / Allmon2
-$aslInfo = [];     // AllStar node => callsign
+$aslInfo = [];     // AllStar node => tlb_asl_nodeinfo() result
 $tick = 0;
 
 tlb_heard_now_save([]);   // overs from before a restart can't be finished, so don't show them as live
@@ -308,8 +308,13 @@ while (true) {
 			$ev['l'] = 1;
 			if ($asl['node'] !== '' && $now - $asl['at'] <= ASL_KEY_HOLD) {
 				$a = $asl['node'];
-				if (!isset($aslInfo[$a])) $aslInfo[$a] = tlb_asl_nodeinfo($a)['call'];
-				$ev += ['a' => $a, 'c' => $aslInfo[$a], 'd' => $asl['desc']];
+				if (!isset($aslInfo[$a])) {
+					$i = tlb_asl_nodeinfo($a);
+					// EchoLink: callsign and description come from EchoLink's station list; retry later if not found
+					if (empty($i['el']) || $i['call'] !== '') $aslInfo[$a] = $i;
+				}
+				$i = $aslInfo[$a] ?? ['call' => ''];
+				$ev += ['a' => $a, 'c' => $i['call'], 'd' => !empty($i['el']) && $i['site'] !== '' ? $i['site'] : $asl['desc']];
 			}
 			$heard[$n.'#'.($ev['a'] ?? '')] = $ev;
 		} else {

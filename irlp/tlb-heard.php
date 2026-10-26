@@ -66,9 +66,12 @@ function tlb_heard_who(array $e) {
 	if (!empty($e['a'])) {
 		$a = (string)$e['a'];
 		$c = strtoupper((string)($e['c'] ?? ''));
-		return ['k' => 'asl:'.$a, 'name' => $c !== '' ? $c.' ('.$a.')' : (!empty($e['d']) ? $e['d'] : 'AllStar '.$a),
-			'sub' => 'AllStar '.$a.($c !== '' && !empty($e['d']) ? ' · '.$e['d'] : '').' · via '.$e['n'],
-			'link' => $c !== '' ? 'https://www.qrz.com/db/'.rawurlencode($c) : 'https://stats.allstarlink.org/stats/'.rawurlencode($a),
+		$el = tlb_echolink_num($a);
+		$num = $el !== '' ? 'EchoLink '.$el : 'AllStar '.$a;
+		$d = (!empty($e['d']) && strcasecmp($e['d'], 'echolink') !== 0) ? (string)$e['d'] : '';
+		return ['k' => 'asl:'.$a, 'name' => $c !== '' ? $c.' ('.($el !== '' ? $el : $a).')' : ($d !== '' ? $d : $num),
+			'sub' => $num.($c !== '' && $d !== '' ? ' · '.$d : '').' · via '.$e['n'],
+			'link' => $c !== '' ? tlb_node_link($c) : ($el !== '' ? '' : 'https://stats.allstarlink.org/stats/'.rawurlencode($a)),
 			'p' => 'AllStar'];
 	}
 	return ['k' => (string)$e['n'], 'name' => (string)$e['n'], 'sub' => !empty($e['l']) ? 'AllStar link' : (string)($e['p'] ?? ''),

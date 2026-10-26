@@ -80,8 +80,58 @@ function tlb_asl_live(array $s) {
 	return ['ws' => 'wss://'.$u['host'].(isset($u['port']) ? ':'.$u['port'] : '').rtrim($u['path'] ?? '', '/').'/ws/'.$port];
 }
 
-// Who and where a node is, from AllStarLink's public stats (cached for 6 hours).
+// AllStar shows an EchoLink station as "3" + its 6-digit EchoLink node number. Returns that number, or ''.
+function tlb_echolink_num($n) {
+	return preg_match('/^3(\d{6})$/', (string)$n, $m) ? $m[1] : '';
+}
+
+// EchoLink node number => [callsign, description] for everyone logged in, from EchoLink's public
+// station list. The list (~800 KB) is fetched at most every 10 minutes and kept parsed in the cache;
+// a failed fetch keeps the old copy and waits another 10 minutes before trying again.
+const EL_LOGINS_URL = 'https://www.echolink.org/logins.jsp';
+const TLB_EL_NODES  = TLB_CACHE_DIR.'/echolink-nodes.json';
+function tlb_echolink_nodes() {
+	static $map = null, $at = 0;   // kept for a minute (the notifier is long-running)
+	if ($map !== null && time() - $at < 60) return $map;
+	$at = time();
+	$f = TLB_EL_NODES;
+	if (!is_file($f) || time() - filemtime($f) >= 600) {
+		if (!is_dir(TLB_CACHE_DIR)) @mkdir(TLB_CACHE_DIR, 0750, true);
+		$lock = @fopen($f.'.lock', 'c');
+		if ($lock && flock($lock, LOCK_EX | LOCK_NB)) {   // one fetch at a time; others use the old copy
+			clearstatcache(true, $f);
+			if (!is_file($f) || time() - filemtime($f) >= 600) {
+				$ctx = stream_context_create(['http' => ['timeout' => 10, 'header' => "User-Agent: TheLinkBox-Dashboard/1.0\r\n"]]);
+				$body = (string)@file_get_contents(EL_LOGINS_URL, false, $ctx);
+				$new = [];
+				if (preg_match_all('#<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>[^<]*</td>\s*<td[^>]*>[^<]*</td>\s*<td[^>]*>\s*(\d{1,6})\s*</td>#s', $body, $rows, PREG_SET_ORDER)) {
+					foreach ($rows as $r) {
+						$call = trim(html_entity_decode(strip_tags($r[1]), ENT_QUOTES, 'UTF-8'));
+						$desc = trim(html_entity_decode(strip_tags($r[2]), ENT_QUOTES, 'UTF-8'));
+						$desc = trim(preg_replace('/\s*\[\d+\/\d+\]$/', '', $desc));   // conference "[users/max]"
+						if ($call !== '') $new[sprintf('%06d', $r[3])] = [$call, substr($desc, 0, 60)];
+					}
+				}
+				if (count($new) > 100) { @file_put_contents($f.'.tmp', json_encode($new), LOCK_EX); @rename($f.'.tmp', $f); }
+				elseif (is_file($f)) @touch($f);
+				else @file_put_contents($f, '{}');
+			}
+			flock($lock, LOCK_UN);
+		}
+		if ($lock) fclose($lock);
+	}
+	$map = is_file($f) ? json_decode((string)@file_get_contents($f), true) : null;
+	if (!is_array($map)) $map = [];
+	return $map;
+}
+
+// Who and where a node is, from AllStarLink's public stats (cached for 6 hours),
+// or for EchoLink nodes from EchoLink's station list ('el' => EchoLink node number).
 function tlb_asl_nodeinfo($n) {
+	if (($el = tlb_echolink_num($n)) !== '') {
+		$r = tlb_echolink_nodes()[$el] ?? ['', ''];
+		return ['call' => $r[0], 'where' => '', 'site' => $r[1], 'el' => $el];
+	}
 	$j = json_decode((string)tlb_cached_get(ASL_STATS_URL.$n, 21600), true);
 	$u = $j['stats']['user_node'] ?? ($j['node'] ?? []);
 	$srv = $u['server'] ?? [];
@@ -119,9 +169,15 @@ function tlb_asl_snapshot(array $s) {
 		$n = (string)$n;
 		$url = ASL_STATS_URL.$n;
 		// at most a few new lookups per request so the first load stays quick and polite
-		if (!tlb_cache_fresh($url, 21600) && $fresh++ >= 6) { $info = ['call' => '', 'where' => '', 'site' => '']; }
+		if (tlb_echolink_num($n) === '' && !tlb_cache_fresh($url, 21600) && $fresh++ >= 6) { $info = ['call' => '', 'where' => '', 'site' => '']; }
 		else { $info = tlb_asl_nodeinfo($n); }
 		$out['links'][] = $info + ['node' => $n, 'mode' => $modeName[$modes[$n] ?? 'T'] ?? ''];
+	}
+	// EchoLink stations in the Allmon2 feed that AllStarLink's (slower) stats don't list yet
+	$out['names'] = [];
+	foreach ((array)($out['live']['feed']['list'] ?? []) as $r) {
+		$n = (string)($r['node'] ?? '');
+		if (tlb_echolink_num($n) !== '' && !in_array($n, (array)($data['links'] ?? []))) $out['names'][$n] = tlb_asl_nodeinfo($n) + ['node' => $n];
 	}
 	return $out;
 }
