@@ -45,7 +45,21 @@ function tlb_public_host($host) {
 	return (bool)filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
 }
 
-// Real-time feed from the node's Allmon3 dashboard. Returns null (not set up), ['ws' => url], or ['error' => text].
+// What the notifier last read from an Allmon2 stream: ['list' => [{node, desc, mode, time}], 'keyed' => node or '']. Null when stale.
+const TLB_ASL_FEED = TLB_CACHE_DIR.'/asl-feed.json';
+function tlb_asl_feed_save(array $feed) {
+	if (!is_dir(dirname(TLB_ASL_FEED))) @mkdir(dirname(TLB_ASL_FEED), 0750, true);
+	@file_put_contents(TLB_ASL_FEED.'.tmp', json_encode($feed), LOCK_EX);
+	@rename(TLB_ASL_FEED.'.tmp', TLB_ASL_FEED);
+}
+function tlb_asl_feed() {
+	if (!is_file(TLB_ASL_FEED) || time() - filemtime(TLB_ASL_FEED) > 10) return null;
+	$j = json_decode((string)@file_get_contents(TLB_ASL_FEED), true);
+	return is_array($j) ? $j : null;
+}
+
+// Real-time feed from the node's Allmon3 (['ws' => url]) or Allmon2 (['sse' => url, 'feed' => data]) dashboard.
+// Returns null (not set up) or ['error' => text] otherwise.
 function tlb_asl_live(array $s) {
 	$base = $s['asl_live_base'];
 	$node = $s['asl_node'];
@@ -53,6 +67,12 @@ function tlb_asl_live(array $s) {
 	$u = parse_url($base);
 	if (!$u || ($u['scheme'] ?? '') !== 'https' || empty($u['host']) || !tlb_public_host($u['host'])) {
 		return ['error' => 'The live feed address must be a public https address.'];
+	}
+	// Allmon2 / Supermon: no WebSocket, a server-sent-events stream that only the notifier reads (browsers get it via asl.php)
+	if (preg_match('#/(allmon2|supermon2?)(/|$)#i', $u['path'] ?? '')) {
+		$dir = preg_replace('#/[^/]*\.php$#', '', rtrim($u['path'], '/'));
+		return ['sse' => 'https://'.$u['host'].(isset($u['port']) ? ':'.$u['port'] : '').$dir.'/server.php?nodes='.$node,
+			'feed' => tlb_asl_feed()];
 	}
 	$j = json_decode((string)tlb_cached_get(rtrim($base, '/').'/master/node/'.$node.'/config', 600), true);
 	$port = (int)($j['SUCCESS']['statport'] ?? 0);
