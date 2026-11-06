@@ -185,13 +185,17 @@ if ($authed && $do !== '' && $do !== 'login' && $do !== 'logout') {
 		$s = tlb_load_settings();
 		$node = trim($_POST['asl_node'] ?? '');
 		$base = trim($_POST['asl_live_base'] ?? '');
+		$bridge = trim($_POST['asl_bridge'] ?? '');
 		if ($node !== '' && !preg_match('/^\d{3,7}$/', $node)) {
 			$error = 'The node number should be 3 to 7 digits, like 523800.';
+		} elseif ($bridge !== '' && !preg_match('/^\d{3,7}$/', $bridge)) {
+			$error = 'The linked node should be 3 to 7 digits, like 1996.';
 		} elseif ($base !== '' && !preg_match('#^https://[A-Za-z0-9.-]+(:\d{1,5})?(/[A-Za-z0-9._~/-]*)?$#', $base)) {
 			$error = 'The live feed address should look like https://example.org/allmon3/ or https://example.org/allmon2/';
 		} else {
 			$s['asl_node'] = $node;
 			$s['asl_live_base'] = $base;
+			$s['asl_bridge'] = $bridge;
 			if (!tlb_save_settings($s)) {
 				$error = 'Couldn\'t save settings. Check that /var/lib/tlb-admin is writable by the web server.';
 			} else {
@@ -427,6 +431,8 @@ function sw($name, $label, $on) {
 			<div class="card"><h3>AllStar node</h3>
 				<label class="fld">Node number<input type="text" name="asl_node" inputmode="numeric" maxlength="7" value="<?= h($settings['asl_node']) ?>"></label>
 				<p class="sub"><?= $settings['asl_node'] !== '' ? 'Saved: node '.h($settings['asl_node']).'.' : 'Not set yet.' ?> The node's links show on the main page under the TheLinkBox list, with the live diagram and the AllStar network map. Leave it empty to hide that section.</p>
+				<label class="fld" style="margin-top:12px">Linked node (optional)<input type="text" name="asl_bridge" inputmode="numeric" maxlength="7" value="<?= h($settings['asl_bridge']) ?>" placeholder="e.g. 1996"></label>
+				<p class="sub">If another AllStar node is what connects this node to TheLinkBox (for example a node that bridges IRLP or EchoLink), enter its number. The live diagram then draws it between the two: TheLinkBox, that node, this node. Leave it empty and the diagram guesses from node descriptions that mention IRLP or EchoLink.</p>
 			</div>
 			<div class="card"><h3>Real-time feed (optional)</h3>
 				<label class="fld">Allmon3 or Allmon2 address<input type="text" name="asl_live_base" value="<?= h($settings['asl_live_base']) ?>" placeholder="https://example.org/allmon3/ or https://example.org/allmon2/" autocapitalize="off" autocorrect="off"></label>

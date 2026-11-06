@@ -4,7 +4,7 @@
 const TLB_STATE_DIR = '/var/lib/tlb-admin';
 const TLB_SETTINGS  = '/var/lib/tlb-admin/settings.json';
 const TLB_BIN       = '/usr/local/bin/tlbcmd';
-const TLB_VERSION   = '2.4.1';   // dashboard release, shown in the page footer; see CHANGELOG.md
+const TLB_VERSION   = '2.4.4';   // dashboard release, shown in the page footer; see CHANGELOG.md
 
 // Run one tlbcmd command and return its output without the leading numeric status line.
 function tlb_cmd($text) {
@@ -21,6 +21,7 @@ function tlb_default_settings() {
 		'server_label'  => 'TheLinkBox',
 		'asl_node'      => '',
 		'asl_live_base' => '',
+		'asl_bridge'    => '',
 		'viewer_alerts' => true,
 		'on_connect'    => true,
 		'on_disconnect' => true,

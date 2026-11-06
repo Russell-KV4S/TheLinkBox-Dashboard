@@ -4,6 +4,18 @@ Versions follow `MAJOR.MINOR.PATCH`: MAJOR for a redesign or a change that needs
 MINOR for new features, PATCH for fixes. The number lives in `TLB_VERSION` in `irlp/tlb-lib.php` and is
 shown in the page footer. Bump it with every release, and add a section here.
 
+## 2.4.4
+- Live diagram: a "Linked node" that the real-time feed doesn't list (Allmon2 can leave a link out) is still drawn
+  between the two hubs.
+
+## 2.4.3
+- AllStar settings: optional "Linked node" (e.g. 1996). When set, the Live diagram draws exactly that node between
+  TheLinkBox and the AllStar node. When empty it guesses from descriptions mentioning IRLP or EchoLink.
+
+## 2.4.2
+- Live diagram: AllStar nodes that carry IRLP or EchoLink (what TheLinkBox speaks) into AllStar now sit between the
+  two hubs, linked to both, instead of on the AllStar rim. Other bridges (DMR/YSF etc.) stay on the rim.
+
 ## 2.4.1
 - Last heard: a station's name now comes from its newest over, so EchoLink stations heard before 2.3.0 show their
   callsign instead of "EchoLink NNNNNN". Older EchoLink overs also get their callsign from EchoLink's station list.

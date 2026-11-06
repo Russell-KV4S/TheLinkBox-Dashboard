@@ -16,6 +16,8 @@
 		return e;
 	}
 
+	var BRIDGE_RE = /IRLP|EchoLink/i; // TheLinkBox speaks IRLP and EchoLink, so an AllStar node bridging those is what joins the two sides
+
 	var PAD = 40; // room for labels on the outermost nodes
 	var svg = s('svg', { viewBox: (-PAD) + ' 0 ' + (W + 2 * PAD) + ' ' + H, class: 'netsvg', role: 'img', 'aria-label': 'Live network diagram' }, box);
 	var gEdges = s('g', {}, svg), gNodes = s('g', {}, svg);
@@ -60,22 +62,41 @@
 		if (two) {
 			var B = { id: 'hubB', x: W - 110, y: CY, hub: true, label: 'Node ' + asl.node, sub: 'AllStar', cls: 'hub' };
 			nodes.push(B);
-			var list = asl.list || [];
+			var all = asl.list || [];
+			// The node that carries IRLP/EchoLink into AllStar is what joins the two sides, so it sits on the
+			// line between the two hubs (TLB - node - ASL) instead of out on a rim.
+			var mid = null;
+			if (asl.bridge) all.forEach(function (l) { if (!mid && String(l.node) === String(asl.bridge)) mid = l; });
+			// the owner named it, so draw it even when the live feed leaves it out of the list
+			if (!mid && asl.bridge) mid = { node: String(asl.bridge), num: String(asl.bridge), call: '', desc: '', mode: '', link: 'https://stats.allstarlink.org/stats/' + encodeURIComponent(asl.bridge) };
+			if (!mid && !asl.bridge) all.forEach(function (l) { if (!mid && BRIDGE_RE.test((l.desc || '') + ' ' + (l.call || ''))) mid = l; });
+			var list = all.filter(function (l) { return l !== mid; });
 			var rB = Math.min(115, 78 + list.length * 4);
 			var pb = arc(B.x, list.length, -75, 75, rB);
 			var aslTalk = !!asl.localTx;
-			list.forEach(function (l, i) {
+			function aslNode(l, x, y) {
 				var tx = asl.talking !== '' && String(asl.talking) === String(l.node);
-				var n = { id: 'a:' + l.node, x: pb[i][0], y: pb[i][1], label: l.call || l.num || l.node, sub: l.call ? (l.num || l.node) : trunc(l.desc || l.mode, 16), cls: 'p-other', tx: tx,
-					link: l.link || null };
+				return { id: 'a:' + l.node, x: x, y: y, label: l.call || l.num || l.node, sub: l.call ? (l.num || l.node) : trunc(l.desc || l.mode, 16), cls: 'p-other', tx: tx, link: l.link || null };
+			}
+			list.forEach(function (l, i) {
+				var n = aslNode(l, pb[i][0], pb[i][1]);
 				nodes.push(n);
-				edges.push({ id: 'e:' + n.id, a: n, b: B, flow: tx });
-				aslTalk = aslTalk || tx;
+				edges.push({ id: 'e:' + n.id, a: n, b: B, flow: n.tx });
+				aslTalk = aslTalk || n.tx;
 			});
+			var M = null;
+			if (mid) { M = aslNode(mid, W / 2, CY); nodes.push(M); aslTalk = aslTalk || M.tx; }
 			var bridgeRx = !!(bridge && bridge.talking);
 			var inbound = aslTalk || bridgeRx;
-			edges.push({ id: 'e:bridge', a: inbound ? B : A, b: inbound ? A : B, flow: inbound || tlbTalk, bridge: true,
-				label: bridge ? bridge.node : 'not linked', down: !bridge });
+			var flowing = inbound || tlbTalk;
+			if (M) {
+				edges.push({ id: 'e:bridge', a: inbound ? M : A, b: inbound ? A : M, flow: flowing, bridge: true,
+					label: bridge ? bridge.node : 'not linked', down: !bridge, labelAt: [A, M] });
+				edges.push({ id: 'e:mid', a: inbound ? B : M, b: inbound ? M : B, flow: flowing, bridge: true, down: !bridge });
+			} else {
+				edges.push({ id: 'e:bridge', a: inbound ? B : A, b: inbound ? A : B, flow: flowing, bridge: true,
+					label: bridge ? bridge.node : 'not linked', down: !bridge, labelAt: [A, B] });
+			}
 			A.tx = tlbTalk || inbound;
 			B.tx = inbound || tlbTalk;
 		} else {
@@ -91,8 +112,8 @@
 		m.edges.forEach(function (e) {
 			var line = s('line', { class: 'edge' + (e.bridge ? ' bridge' : '') + (e.down ? ' down' : '') }, gEdges);
 			els[e.id] = { line: line };
-			if (e.bridge) {
-				var t = s('text', { class: 'elabel', x: (e.a.x + e.b.x) / 2, y: CY - 9 }, gEdges);
+			if (e.bridge && e.label) {
+				var t = s('text', { class: 'elabel', x: (e.labelAt[0].x + e.labelAt[1].x) / 2, y: CY - 9 }, gEdges);
 				t.textContent = e.label;
 			}
 		});
