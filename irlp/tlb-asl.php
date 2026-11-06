@@ -209,6 +209,7 @@ function tlb_asl_snapshot(array $s) {
 	$out  = [
 		'node'    => $node,
 		'ip'      => (string)($un['ipaddr'] ?? ''),
+		'bridge'  => (string)($s['asl_bridge'] ?? ''),
 		'desc'    => trim(($un['server']['SiteName'] ?? '').' '.($un['server']['Location'] ?? '')),
 		'updated' => $j['stats']['updated_at'] ?? '',
 		'links'   => [],

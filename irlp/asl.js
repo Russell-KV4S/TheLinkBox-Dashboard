@@ -7,6 +7,7 @@
 	var rowsEl = document.getElementById('asl-rows');
 	var stateEl = document.getElementById('asl-state');
 	var info = {};          // node number -> {call, where, site}
+	var aslBridge = '';     // optional node number the owner says joins this node to TheLinkBox
 	var aslIp = '';         // the node's IP, used to spot which TheLinkBox connection is the AllStar bridge
 	var ws = null, liveUrl = null, liveOn = false, retryMs = 5000, retryTimer = null;
 	var every = 20000, lastPoll = 0;   // poll gap; drops to a couple of seconds while an Allmon2 feed is live
@@ -87,7 +88,7 @@
 		if (rowsEl.replaceChildren) rowsEl.replaceChildren(frag);
 		else { rowsEl.innerHTML = ''; rowsEl.appendChild(frag); }
 		document.dispatchEvent(new CustomEvent('asl:data', { detail: {
-			node: node, ip: aslIp, talking: talking ? String(talking) : '', localTx: !!localTx,
+			node: node, ip: aslIp, bridge: aslBridge, talking: talking ? String(talking) : '', localTx: !!localTx,
 			list: list.map(function (r) {
 				var c = callOf(r.node, r.desc);
 				return { node: String(r.node), num: numOf(r.node), call: c, link: c ? linkOf(c) : '', mode: r.mode, desc: (info[r.node] || {}).site || r.desc };
@@ -104,6 +105,7 @@
 			.then(function (d) {
 				if (!d) return;
 				aslIp = d.ip || '';
+				aslBridge = d.bridge || '';
 				(d.links || []).forEach(function (l) { info[l.node] = l; });
 				Object.keys(d.names || {}).forEach(function (k) { info[k] = d.names[k]; });
 				var feed = d.live && d.live.feed;
